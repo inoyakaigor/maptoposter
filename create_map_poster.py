@@ -73,7 +73,7 @@ def load_fonts():
 
 FONTS = load_fonts()
 
-def generate_output_filename(city, theme_name, preferred_name=None):
+def generate_output_filename(city, theme_name, preferred_name=None, output_format):
     """
     Generate unique output filename with city, theme, and datetime.
     """
@@ -81,9 +81,11 @@ def generate_output_filename(city, theme_name, preferred_name=None):
         os.makedirs(POSTERS_DIR)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     city_to_use = preferred_name or city
     city_slug = city_to_use.lower().replace(' ', '_')
-    filename = f"{city_slug}_{theme_name}_{timestamp}.png"
+    ext = output_format.lower()
+    filename = f"{city_slug}_{theme_name}_{timestamp}.{ext}"
     return os.path.join(POSTERS_DIR, filename)
 
 def get_available_themes():
@@ -304,7 +306,7 @@ def fetch_features(point, dist, tags, name):
         print(f"OSMnx error while fetching features: {e}")
         return None
 
-def create_poster(city, country, point, dist, output_file, preferred_name=None):
+def create_poster(city, country, point, dist, output_file, preferred_name=None, output_format):
     print(f"\nGenerating map for {city}, {country}...")
 
     # Progress bar for data fetching
@@ -333,12 +335,19 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None):
     ax.set_position([0, 0, 1, 1])
 
     # 3. Plot Layers
-    # Layer 1: Polygons
+    # Layer 1: Polygons (filter to only plot polygon/multipolygon geometries, not points)
     if water is not None and not water.empty:
-        water.plot(ax=ax, facecolor=THEME['water'], edgecolor='none', zorder=1)
+        # Filter to only polygon/multipolygon geometries to avoid point features showing as dots
+        water_polys = water[water.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+        if not water_polys.empty:
+            water_polys.plot(ax=ax, facecolor=THEME['water'], edgecolor='none', zorder=1)
+    
     if parks is not None and not parks.empty:
-        parks.plot(ax=ax, facecolor=THEME['parks'], edgecolor='none', zorder=2)
-
+        # Filter to only polygon/multipolygon geometries to avoid point features showing as dots
+        parks_polys = parks[parks.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+        if not parks_polys.empty:
+            parks_polys.plot(ax=ax, facecolor=THEME['parks'], edgecolor='none', zorder=2)
+    
     # Layer 2: Roads with hierarchy coloring
     print("Applying road hierarchy colors...")
     edge_colors = get_edge_colors_by_type(G)
@@ -368,14 +377,29 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None):
         font_top = FontProperties(family='monospace', weight='bold', size=40)
         font_sub = FontProperties(family='monospace', weight='normal', size=22)
         font_coords = FontProperties(family='monospace', size=14)
-
+    
     display_city_name = preferred_name or city
     spaced_city = "  ".join(list(display_city_name.upper()))
+    
+    # Dynamically adjust font size based on city name length to prevent truncation
+    base_font_size = 60
+    city_char_count = len(city)
+    if city_char_count > 10:
+        # Scale down font size for longer names
+        scale_factor = 10 / city_char_count
+        adjusted_font_size = max(base_font_size * scale_factor, 24)  # Minimum size of 24
+    else:
+        adjusted_font_size = base_font_size
+    
+    if FONTS:
+        font_main_adjusted = FontProperties(fname=FONTS['bold'], size=adjusted_font_size)
+    else:
+        font_main_adjusted = FontProperties(family='monospace', weight='bold', size=adjusted_font_size)
 
     # --- BOTTOM TEXT ---
     ax.text(0.5, 0.14, spaced_city, transform=ax.transAxes,
-            color=THEME['text'], ha='center', fontproperties=font_main, zorder=11)
-
+            color=THEME['text'], ha='center', fontproperties=font_main_adjusted, zorder=11)
+    
     ax.text(0.5, 0.10, country.upper(), transform=ax.transAxes,
             color=THEME['text'], ha='center', fontproperties=font_sub, zorder=11)
 
@@ -402,9 +426,19 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None):
 
     # 5. Save
     print(f"Saving to {output_file}...")
-    plt.savefig(output_file, dpi=600, facecolor=THEME['bg'])
+
+    fmt = output_format.lower()
+    save_kwargs = dict(facecolor=THEME["bg"], bbox_inches="tight", pad_inches=0.05,)
+
+    # DPI matters mainly for raster formats
+    if fmt == "png":
+        save_kwargs["dpi"] = 600
+
+    plt.savefig(output_file, format=fmt, **save_kwargs)
+
     plt.close()
     print(f"✓ Done! Poster saved as {output_file}")
+
 
 def print_examples():
     """Print usage examples."""
@@ -506,7 +540,8 @@ Examples:
     parser.add_argument('--distance', '-d', type=int, default=29000, help='Map radius in meters (default: 29000)')
     parser.add_argument('--list-themes', action='store_true', help='List all available themes')
     parser.add_argument('--preferred-name', '-p', type=str, default=None, help='Preferred city name to display (optional)')
-
+    parser.add_argument('--format', '-f', default='png', choices=['png', 'svg', 'pdf'],help='Output format for the poster (default: png)')
+    
     args = parser.parse_args()
 
     # If no arguments provided, show examples
@@ -542,9 +577,9 @@ Examples:
     # Get coordinates and generate poster
     try:
         coords = get_coordinates(args.city, args.country)
-        output_file = generate_output_filename(args.city, args.theme, args.preferred_name)
-        create_poster(args.city, args.country, coords, args.distance, output_file, args.preferred_name)
-
+        output_file = generate_output_filename(args.city, args.theme, args.preferred_name, args.format)
+        create_poster(args.city, args.country, coords, args.distance, output_file, args.preferred_name, args.format)
+        
         print("\n" + "=" * 50)
         print("✓ Poster generation complete!")
         print("=" * 50)
