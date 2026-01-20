@@ -226,8 +226,10 @@ def get_edge_widths_by_type(G):
             width = 0.8
         elif highway in ['tertiary', 'tertiary_link']:
             width = 0.6
-        else:
+        elif highway in ["residential", "living_street"]:
             width = 0.4
+        else:
+            width = 0.2
 
         edge_widths.append(width)
 
