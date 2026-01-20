@@ -41,6 +41,7 @@ python create_map_poster.py --city <city> --country <country> [options]
 | `--theme` | `-t` | Theme name | feature_based |
 | `--distance` | `-d` | Map radius in meters | 29000 |
 | `--preferred-name` | `-p` | Preferred display name to show on the poster and use in the output filename | `city` |
+| `--truncate-by-edge` | `-e` | Retain nodes outside the bounding box if at least one of the node’s neighbors lies within the bounding box | False |
 | `--list-themes` | | List all available themes | |
 
 ### Examples

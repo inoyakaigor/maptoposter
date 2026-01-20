@@ -247,7 +247,7 @@ def get_coordinates(city, country):
         return cached
 
     print("Looking up coordinates...")
-    geolocator = Nominatim(user_agent="city_map_poster")
+    geolocator = Nominatim(user_agent="city_map_poster", timeout=10)
 
     # Add a small delay to respect Nominatim's usage policy
     time.sleep(1)
@@ -309,20 +309,22 @@ def fetch_features(point, dist, tags, name):
         return None
 
 
-def create_poster(city, country, point, dist, output_file, output_format="png", preferred_name=None):
+def create_poster(city, country, point, dist, output_file, output_format="png", preferred_name=None, truncate_by_edge=False):
     print(f"\nGenerating map for {city}, {country}...")
 
     # Progress bar for data fetching
     with tqdm(total=3, desc="Fetching map data", unit="step", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
         # 1. Fetch Street Network
         pbar.set_description("Downloading street network")
-        G = fetch_graph(point, dist)
+        G = ox.graph_from_point(point, dist=dist, dist_type='bbox', network_type='all', truncate_by_edge=truncate_by_edge)
         pbar.update(1)
+        time.sleep(0.5)  # Rate limit between requests
 
         # 2. Fetch Water Features
         pbar.set_description("Downloading water features")
         water = fetch_features(point, dist, {'natural': 'water', 'waterway': 'riverbank'}, 'water')
         pbar.update(1)
+        time.sleep(0.3)
 
         # 3. Fetch Parks
         pbar.set_description("Downloading parks/green spaces")
@@ -541,6 +543,7 @@ Examples:
     parser.add_argument('--country', '-C', type=str, help='Country name')
     parser.add_argument('--theme', '-t', type=str, default='feature_based', help='Theme name (default: feature_based)')
     parser.add_argument('--distance', '-d', type=int, default=29000, help='Map radius in meters (default: 29000)')
+    parser.add_argument('--truncate-by-edge', '-e', action='store_true', help='Retain nodes outside the bounding box if at least one of the node\’s neighbors lies within the bounding box')
     parser.add_argument('--list-themes', action='store_true', help='List all available themes')
     parser.add_argument('--preferred-name', '-p', type=str, default=None, help='Preferred city name to display (optional)')
     parser.add_argument('--format', '-f', default='png', choices=['png', 'svg', 'pdf'],help='Output format for the poster (default: png)')
@@ -581,7 +584,7 @@ Examples:
     try:
         coords = get_coordinates(args.city, args.country)
         output_file = generate_output_filename(args.city, args.theme, args.format, args.preferred_name)
-        create_poster(args.city, args.country, coords, args.distance, output_file, args.format, args.preferred_name)
+        create_poster(args.city, args.country, coords, args.distance, output_file, args.format, args.preferred_name, args.truncate_by_edge)
 
         print("\n" + "=" * 50)
         print("✓ Poster generation complete!")
