@@ -73,7 +73,7 @@ def load_fonts():
 
 FONTS = load_fonts()
 
-def generate_output_filename(city, theme_name, preferred_name=None, output_format):
+def generate_output_filename(city, theme_name, output_format="png", preferred_name=None):
     """
     Generate unique output filename with city, theme, and datetime.
     """
@@ -306,7 +306,8 @@ def fetch_features(point, dist, tags, name):
         print(f"OSMnx error while fetching features: {e}")
         return None
 
-def create_poster(city, country, point, dist, output_file, preferred_name=None, output_format):
+
+def create_poster(city, country, point, dist, output_file, output_format="png", preferred_name=None):
     print(f"\nGenerating map for {city}, {country}...")
 
     # Progress bar for data fetching
@@ -341,13 +342,13 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None, 
         water_polys = water[water.geometry.type.isin(['Polygon', 'MultiPolygon'])]
         if not water_polys.empty:
             water_polys.plot(ax=ax, facecolor=THEME['water'], edgecolor='none', zorder=1)
-    
+
     if parks is not None and not parks.empty:
         # Filter to only polygon/multipolygon geometries to avoid point features showing as dots
         parks_polys = parks[parks.geometry.type.isin(['Polygon', 'MultiPolygon'])]
         if not parks_polys.empty:
             parks_polys.plot(ax=ax, facecolor=THEME['parks'], edgecolor='none', zorder=2)
-    
+
     # Layer 2: Roads with hierarchy coloring
     print("Applying road hierarchy colors...")
     edge_colors = get_edge_colors_by_type(G)
@@ -377,10 +378,10 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None, 
         font_top = FontProperties(family='monospace', weight='bold', size=40)
         font_sub = FontProperties(family='monospace', weight='normal', size=22)
         font_coords = FontProperties(family='monospace', size=14)
-    
+
     display_city_name = preferred_name or city
     spaced_city = "  ".join(list(display_city_name.upper()))
-    
+
     # Dynamically adjust font size based on city name length to prevent truncation
     base_font_size = 60
     city_char_count = len(city)
@@ -390,7 +391,7 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None, 
         adjusted_font_size = max(base_font_size * scale_factor, 24)  # Minimum size of 24
     else:
         adjusted_font_size = base_font_size
-    
+
     if FONTS:
         font_main_adjusted = FontProperties(fname=FONTS['bold'], size=adjusted_font_size)
     else:
@@ -399,7 +400,7 @@ def create_poster(city, country, point, dist, output_file, preferred_name=None, 
     # --- BOTTOM TEXT ---
     ax.text(0.5, 0.14, spaced_city, transform=ax.transAxes,
             color=THEME['text'], ha='center', fontproperties=font_main_adjusted, zorder=11)
-    
+
     ax.text(0.5, 0.10, country.upper(), transform=ax.transAxes,
             color=THEME['text'], ha='center', fontproperties=font_sub, zorder=11)
 
@@ -541,7 +542,7 @@ Examples:
     parser.add_argument('--list-themes', action='store_true', help='List all available themes')
     parser.add_argument('--preferred-name', '-p', type=str, default=None, help='Preferred city name to display (optional)')
     parser.add_argument('--format', '-f', default='png', choices=['png', 'svg', 'pdf'],help='Output format for the poster (default: png)')
-    
+
     args = parser.parse_args()
 
     # If no arguments provided, show examples
@@ -577,9 +578,9 @@ Examples:
     # Get coordinates and generate poster
     try:
         coords = get_coordinates(args.city, args.country)
-        output_file = generate_output_filename(args.city, args.theme, args.preferred_name, args.format)
-        create_poster(args.city, args.country, coords, args.distance, output_file, args.preferred_name, args.format)
-        
+        output_file = generate_output_filename(args.city, args.theme, args.format, args.preferred_name)
+        create_poster(args.city, args.country, coords, args.distance, output_file, args.format, args.preferred_name)
+
         print("\n" + "=" * 50)
         print("✓ Poster generation complete!")
         print("=" * 50)
